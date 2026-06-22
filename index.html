@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molecular Docking Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-dna text-2xl text-blue-600"></i>
+                <h1 class="text-2xl font-bold text-gray-800">Molecular Docking Dashboard</h1>
+            </div>
+            <div class="text-sm text-gray-600">
+                <span class="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                    <i class="fas fa-circle text-green-600 mr-1 text-xs"></i> Online
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Input Panel -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-lg p-6 sticky top-8">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">
+                        <i class="fas fa-flask mr-2 text-blue-600"></i>Docking Setup
+                    </h2>
+
+                    <form id="dockingForm" class="space-y-6">
+                        <!-- PDB ID Input -->
+                        <div>
+                            <label for="pdbId" class="block text-sm font-semibold text-gray-700 mb-2">
+                                <i class="fas fa-cube mr-1 text-blue-500"></i>Protein PDB ID
+                            </label>
+                            <input
+                                type="text"
+                                id="pdbId"
+                                placeholder="e.g., 1BVN"
+                                maxlength="4"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition font-mono text-lg text-center"
+                                required
+                            />
+                            <p class="text-xs text-gray-500 mt-2">4-character PDB identifier from RCSB</p>
+                            <div id="pdbStatus" class="mt-2 text-sm"></div>
+                        </div>
+
+                        <!-- Ligand Type Selection -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-3">
+                                <i class="fas fa-pills mr-1 text-blue-500"></i>Ligand Source
+                            </label>
+                            <div class="flex space-x-4">
+                                <label class="flex items-center cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="ligandType"
+                                        value="cid"
+                                        checked
+                                        class="w-4 h-4 text-blue-600"
+                                    />
+                                    <span class="ml-2 text-gray-700">PubChem CID</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="ligandType"
+                                        value="smiles"
+                                        class="w-4 h-4 text-blue-600"
+                                    />
+                                    <span class="ml-2 text-gray-700">SMILES</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Ligand Input -->
+                        <div>
+                            <label for="ligandInput" class="block text-sm font-semibold text-gray-700 mb-2" id="ligandLabel">
+                                <i class="fas fa-barcode mr-1 text-blue-500"></i>PubChem CID
+                            </label>
+                            <input
+                                type="text"
+                                id="ligandInput"
+                                placeholder="e.g., 5280863"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition"
+                                required
+                            />
+                            <p class="text-xs text-gray-500 mt-2" id="ligandHint">e.g., aspirin (CID: 5280763)</p>
+                            <div id="ligandStatus" class="mt-2 text-sm"></div>
+                        </div>
+
+                        <!-- Run Button -->
+                        <button
+                            type="submit"
+                            id="runButton"
+                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 rounded-lg transition transform hover:scale-105 active:scale-95 flex items-center justify-center space-x-2"
+                        >
+                            <i class="fas fa-rocket"></i>
+                            <span>Run Docking</span>
+                        </button>
+
+                        <!-- Progress -->
+                        <div id="progressContainer" class="hidden">
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span id="progressText">Processing...</span>
+                                    <span id="progressPercent">0%</span>
+                                </div>
+                                <div class="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+                                    <div
+                                        id="progressBar"
+                                        class="bg-gradient-to-r from-blue-600 to-blue-400 h-2 rounded-full transition-all duration-300"
+                                        style="width: 0%"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Status Card -->
+                <div id="statusCard" class="bg-white rounded-lg shadow-lg p-6 hidden">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-check-circle text-2xl text-green-500"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800">Docking Completed</h3>
+                            <p class="text-sm text-gray-600" id="statusMessage"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Cards Grid -->
+                <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                    <!-- Binding Affinity Card -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-chart-bar mr-2 text-green-600"></i>Best Binding Affinity
+                        </h3>
+                        <div class="text-4xl font-bold text-green-600" id="affinityValue">-</div>
+                        <p class="text-gray-600 mt-2">kcal/mol (lower is better)</p>
+                    </div>
+
+                    <!-- Grid Parameters Card -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-cube mr-2 text-purple-600"></i>Docking Box
+                        </h3>
+                        <div id="gridParams" class="space-y-2 text-sm text-gray-700">
+                            <div>Center: <span class="font-mono text-gray-900" id="centerCoords">-</span></div>
+                            <div>Size: <span class="font-mono text-gray-900" id="sizeCoords">-</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Poses Table -->
+                <div id="posesCard" class="bg-white rounded-lg shadow-lg p-6 hidden">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">
+                        <i class="fas fa-list mr-2 text-indigo-600"></i>Docking Poses
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="px-4 py-2 text-left font-semibold text-gray-700">Mode</th>
+                                    <th class="px-4 py-2 text-left font-semibold text-gray-700">Affinity (kcal/mol)</th>
+                                    <th class="px-4 py-2 text-left font-semibold text-gray-700">RMSD (Å)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="posesTable">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3D Viewer -->
+                <div id="viewerCard" class="bg-white rounded-lg shadow-lg p-6 hidden">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">
+                        <i class="fas fa-cube mr-2 text-cyan-600"></i>3D Structure Viewer
+                    </h3>
+                    <div id="viewer3d" class="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div class="text-center text-gray-600">
+                            <i class="fas fa-cube text-4xl mb-2"></i>
+                            <p>Loading 3D viewer...</p>
+                            <p class="text-xs mt-2">Install <a href="https://molstar.org/" class="text-blue-600 hover:underline">Mol*</a> for better visualization</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Card -->
+                <div id="errorCard" class="bg-red-50 border-l-4 border-red-600 rounded-lg p-6 hidden">
+                    <div class="flex items-start space-x-3">
+                        <i class="fas fa-exclamation-circle text-2xl text-red-600 mt-1"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold text-red-800">Error</h3>
+                            <p class="text-red-700 mt-2" id="errorMessage"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-12">
+        <div class="max-w-7xl mx-auto px-4 py-6 text-center text-gray-600 text-sm">
+            <p>Powered by <strong>AutoDock Vina</strong>, <strong>RDKit</strong>, and <strong>BioPython</strong></p>
+            <p class="mt-2">For research use only. Please cite your software sources.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Global state
+        let currentResults = null;
+
+        // DOM elements
+        const form = document.getElementById('dockingForm');
+        const runButton = document.getElementById('runButton');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressText = document.getElementById('progressText');
+
+        // Input elements
+        const pdbIdInput = document.getElementById('pdbId');
+        const ligandInput = document.getElementById('ligandInput');
+        const ligandTypeRadios = document.querySelectorAll('input[name="ligandType"]');
+
+        // Result elements
+        const statusCard = document.getElementById('statusCard');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const posesCard = document.getElementById('posesCard');
+        const viewerCard = document.getElementById('viewerCard');
+        const errorCard = document.getElementById('errorCard');
+
+        // Event: Toggle ligand input type
+        ligandTypeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const label = document.getElementById('ligandLabel');
+                const hint = document.getElementById('ligandHint');
+                
+                if (e.target.value === 'cid') {
+                    label.innerHTML = '<i class="fas fa-barcode mr-1 text-blue-500"></i>PubChem CID';
+                    hint.textContent = 'e.g., aspirin (CID: 5280763)';
+                    ligandInput.placeholder = 'e.g., 5280863';
+                } else {
+                    label.innerHTML = '<i class="fas fa-chemical mr-1 text-blue-500"></i>SMILES String';
+                    hint.textContent = 'e.g., CC(=O)Oc1ccccc1C(=O)O (Aspirin)';
+                    ligandInput.placeholder = 'e.g., CC(=O)Oc1ccccc1C(=O)O';
+                }
+                ligandInput.value = '';
+            });
+        });
+
+        // Event: Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await runDocking();
+        });
+
+        // Main docking function
+        async function runDocking() {
+            try {
+                // Hide previous results and errors
+                statusCard.classList.add('hidden');
+                resultsContainer.classList.add('hidden');
+                posesCard.classList.add('hidden');
+                viewerCard.classList.add('hidden');
+                errorCard.classList.add('hidden');
+                
+                // Validate inputs
+                const pdbId = pdbIdInput.value.trim();
+                const ligandInput_val = ligandInput.value.trim();
+                const ligandType = document.querySelector('input[name="ligandType"]:checked').value;
+
+                if (!pdbId || pdbId.length !== 4) {
+                    showError('PDB ID must be exactly 4 characters');
+                    return;
+                }
+
+                if (!ligandInput_val) {
+                    showError('Please enter a ligand (CID or SMILES)');
+                    return;
+                }
+
+                // Show progress
+                progressContainer.classList.remove('hidden');
+                runButton.disabled = true;
+
+                // Simulate progress
+                updateProgress(0, 'Initializing...');
+                await sleep(500);
+                updateProgress(20, 'Fetching protein structure...');
+                await sleep(1000);
+                updateProgress(40, 'Preparing ligand...');
+                await sleep(1000);
+                updateProgress(60, 'Calculating docking box...');
+                await sleep(500);
+                updateProgress(80, 'Running docking simulation...');
+
+                // Send request to backend
+                const response = await axios.post('/api/dock', {
+                    pdb_id: pdbId,
+                    ligand_input: ligandInput_val,
+                    ligand_type: ligandType
+                });
+
+                if (response.data.status === 'success') {
+                    currentResults = response.data;
+                    updateProgress(100, 'Rendering results...');
+                    await sleep(500);
+                    displayResults(response.data);
+                } else {
+                    showError(response.data.message || 'Docking failed');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
+                showError(errorMsg);
+            } finally {
+                progressContainer.classList.add('hidden');
+                runButton.disabled = false;
+            }
+        }
+
+        // Display results
+        function displayResults(data) {
+            // Show status
+            document.getElementById('statusMessage').textContent = 
+                `${data.pdb_id.toUpperCase()} docked with ${data.ligand_input}`;
+            statusCard.classList.remove('hidden');
+
+            // Display affinity and grid info
+            document.getElementById('affinityValue').textContent = 
+                data.binding_affinity ? data.binding_affinity.toFixed(2) : '-';
+            
+            if (data.grid_info) {
+                const center = data.grid_info.center;
+                const size = data.grid_info.size;
+                document.getElementById('centerCoords').textContent = 
+                    `(${center[0].toFixed(2)}, ${center[1].toFixed(2)}, ${center[2].toFixed(2)})`;
+                document.getElementById('sizeCoords').textContent = 
+                    `${size[0].toFixed(2)} × ${size[1].toFixed(2)} × ${size[2].toFixed(2)} Å`;
+            }
+            resultsContainer.classList.remove('hidden');
+
+            // Display poses table
+            if (data.poses && data.poses.length > 0) {
+                const tbody = document.getElementById('posesTable');
+                tbody.innerHTML = '';
+                data.poses.forEach(pose => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b hover:bg-gray-50';
+                    row.innerHTML = `
+                        <td class="px-4 py-3 font-semibold text-gray-800">${pose.mode}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded font-mono">
+                                ${pose.affinity.toFixed(2)}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-700">${pose.rmsd_lb.toFixed(2)} - ${pose.rmsd_ub.toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                posesCard.classList.remove('hidden');
+            }
+
+            // Show viewer
+            loadMolecularViewer(data);
+        }
+
+        // Load 3D viewer
+        function loadMolecularViewer(data) {
+            // Placeholder for actual 3D viewer implementation
+            // In production, use py3Dmol or Mol* viewer
+            const viewer = document.getElementById('viewer3d');
+            viewer.innerHTML = `
+                <div class="text-center w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-indigo-50 rounded-lg">
+                    <i class="fas fa-cube text-6xl text-blue-400 mb-4"></i>
+                    <p class="text-lg font-semibold text-gray-800">3D Structure Ready</p>
+                    <p class="text-sm text-gray-600 mt-2">Protein: ${data.pdb_id.toUpperCase()}</p>
+                    <p class="text-sm text-gray-600">Ligand: ${data.ligand_input}</p>
+                    <p class="text-xs text-gray-500 mt-4 px-4">For interactive 3D visualization, integrate py3Dmol or Mol* viewer</p>
+                </div>
+            `;
+            viewerCard.classList.remove('hidden');
+        }
+
+        // Update progress bar
+        function updateProgress(percent, text) {
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+            progressText.textContent = text;
+        }
+
+        // Show error
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            errorCard.classList.remove('hidden');
+        }
+
+        // Sleep utility
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Real-time PDB validation (optional)
+        let pdbValidationTimeout;
+        pdbIdInput.addEventListener('input', () => {
+            clearTimeout(pdbValidationTimeout);
+            const value = pdbIdInput.value.trim();
+            if (value.length === 4) {
+                pdbValidationTimeout = setTimeout(async () => {
+                    try {
+                        const response = await axios.post('/api/validate-pdb', value);
+                        const status = document.getElementById('pdbStatus');
+                        if (response.data.valid) {
+                            status.innerHTML = '<span class="text-green-600"><i class="fas fa-check"></i> PDB found</span>';
+                        } else {
+                            status.innerHTML = '<span class="text-red-600"><i class="fas fa-times"></i> PDB not found</span>';
+                        }
+                    } catch (e) {
+                        // Silently ignore validation errors
+                    }
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html>
